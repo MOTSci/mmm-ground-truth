@@ -1,0 +1,35 @@
+# Public repo hooks. Commit hooks run on every commit; the TODO check runs on push only.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.4
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # Allowlist: block data files everywhere, except .gitkeep placeholders and data/sample/.
+      - id: block-data
+        name: Block data files (only data/sample/ is allowed)
+        language: fail
+        entry: "Data files must not be committed. Put synthetic data in data/sample/ only."
+        files: '^data/|\.(csv|tsv|parquet|xlsx|xls|pkl|pickle|feather|h5|hdf5|sav|dta|sqlite|db)$'
+        exclude: '^data/(.*/)?\.gitkeep$|^data/sample/'
+
+      # Stops a half-filled README from reaching GitHub. Push only, so it never nags while you work.
+      - id: readme-todo
+        name: README still has [TODO] markers
+        language: pygrep
+        entry: '\[TODO'
+        files: '^README\.md$'
+        stages: [pre-push]

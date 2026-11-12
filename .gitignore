@@ -1,0 +1,37 @@
+# --- Data: ignore everything, keep the folder placeholders ---
+data/**
+!data/**/
+!data/**/.gitkeep
+
+# --- Fitted models and large artifacts ---
+models/**
+!models/.gitkeep
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python / tooling ---
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# --- Public repo: synthetic or sample data is allowed ---
+!data/sample/
+!data/sample/**
