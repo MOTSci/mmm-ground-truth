@@ -4,7 +4,8 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
-        args: ["--maxkb=500"]
+        args: ["--maxkb=1000"]
+        exclude: '\.html$'   # rendered Quarto pages embed their charts, so they run large
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
