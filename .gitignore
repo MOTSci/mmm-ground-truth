@@ -3,10 +3,6 @@ data/**
 !data/**/
 !data/**/.gitkeep
 
-# --- Fitted models and large artifacts ---
-models/**
-!models/.gitkeep
-
 # --- Secrets ---
 .env
 .env.*
@@ -31,7 +27,3 @@ Thumbs.db
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
-
-# --- Public repo: synthetic or sample data is allowed ---
-!data/sample/
-!data/sample/**

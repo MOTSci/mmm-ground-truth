@@ -1,0 +1,126 @@
+# ==============================================================================
+# SYNTHETIC DATA CONFIG | MMM portfolio project 1 | config v1.0.0
+#
+# Every number below is ILLUSTRATIVE and UNCALIBRATED.
+# Freeze this file before fitting any model. If you change a value after seeing
+# results, that is a NEW config version (1.1.0, 2.0.0, ...), and both versions
+# stay in the repo.
+#
+# Units: money = thousand USD | impressions = millions | clicks, queries = thousands
+# ==============================================================================
+config_version: "1.0.0"
+
+seeds:
+  primary: 2026                    # the single dataset used for the main notebook
+  multi: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  # The multi-seed list is fixed in advance. Report ALL of them (no cherry-picking).
+
+confounding:
+  enabled: true                    # false = chasing and Search-demand tracking set to 0
+                                   # (sanity check: models should then recover truth much better)
+
+calendar:
+  start_date: "2022-01-03"         # must be a Monday
+  n_weeks: 156
+
+# ---- Step 2a/2b: baseline demand ----------------------------------------------
+baseline:
+  start_level: 1000.0              # weekly sales at week 0, before seasonality
+  trend_per_year: 0.05             # +5% per year, linear
+  seasonality:
+    peak_day_of_year: 330          # about Nov 26
+    harmonic1_amp: 0.10
+    harmonic2_amp: 0.04            # same phase, sharpens the peak
+    # Z (seasonal index used by budgets and CPM) = seasonal / max|seasonal|,
+    # so Z runs from about -0.51 to +1.0 over the year.
+  holidays:
+    black_friday_bump: 0.15
+    pre_christmas_bump: 0.10       # week containing Dec 24
+  latent_demand:                   # Step 4b amendment: hidden demand shock (multiplies baseline)
+    rho: 0.7
+    sd: 0.03
+  noise:                           # sales noise, AR(1), as a fraction of that week's baseline
+    rho: 0.3
+    sd_frac: 0.04
+
+# ---- Step 2c: promotions --------------------------------------------------------
+promos:
+  uplift_mean: 0.12                # fraction of that week's baseline, drawn once per event
+  uplift_sd: 0.02
+  expected_promo_weeks: 18         # design lock: 6 promo weeks per year x 3 years
+  events:
+    - {name: spring_sale,    type: nth_mondays, month: 4, nths: [2, 3]}
+    - {name: summer_sale,    type: nth_mondays, month: 7, nths: [2, 3]}
+    - {name: back_to_school, type: nth_mondays, month: 8, nths: [4]}
+    - {name: black_friday,   type: black_friday}
+  # No post-promo pull-forward dip in v1 (documented limitation).
+
+# ---- Step 4a/4b: budget rules shared by all channels -------------------------------
+budget_rules:
+  multiplier_floor: 0.2            # calendar multiplier never drops below this
+  anticipation_level: 0.5          # promo ramp in the week BEFORE a promo (1.0 during)
+  chase_ref_weeks: 4               # last week's sales vs the average of the 4 weeks before it
+  chase_clip: 0.20                 # performance signal clipped to +/-20%
+
+# ---- Step 3/4: channels ---------------------------------------------------------------
+# spend_t = norm * calendar_mult * chase * latent_tracking * planning_noise
+#   calendar_mult = max(floor, 1 + season_sens*Z + promo_sens*P)
+#   chase         = 1 + chase * g   (g = recent sales performance, clipped)
+# norm rescales so mean calendar-driven spend equals mean_spend.
+# Adstock: geometric (default) or delayed. Delayed weights are rescaled to the
+# same total mass 1/(1-decay) as geometric, so k and beta keep their meaning.
+channels:
+  tv:
+    exposure: spend
+    mean_spend: 60.0
+    adstock: {type: geometric, decay: 0.60, peak_lag: 0}
+    saturation: {k: 150.0, shape: 1.0}
+    beta: 220.0
+    budget: {season_sens: 0.40, promo_sens: 0.30, planning_noise_sd: 0.15, chase: 0.0}
+
+  ooh:
+    exposure: spend
+    mean_spend: 20.0
+    adstock: {type: geometric, decay: 0.30, peak_lag: 0}
+    saturation: {k: 60.0, shape: 1.0}
+    beta: 110.0
+    budget: {season_sens: 0.25, promo_sens: 0.20, planning_noise_sd: 0.12, chase: 0.0}
+
+  meta:
+    exposure: impressions          # impressions (millions) = spend / CPM
+    mean_spend: 40.0
+    price: {kind: cpm, base: 8.0, q4_amp: 0.30, ar_rho: 0.5, log_sd: 0.10}
+    adstock: {type: geometric, decay: 0.40, peak_lag: 0}
+    saturation: {k: 10.0, shape: 1.0}
+    beta: 175.0
+    budget: {season_sens: 0.50, promo_sens: 0.40, planning_noise_sd: 0.12, chase: 2.0}
+
+  youtube_display:                 # video and display combined (documented simplification)
+    exposure: impressions
+    mean_spend: 30.0
+    price: {kind: cpm, base: 5.0, q4_amp: 0.15, ar_rho: 0.3, log_sd: 0.15}
+    adstock: {type: geometric, decay: 0.50, peak_lag: 0}
+    saturation: {k: 12.0, shape: 1.0}
+    beta: 90.0
+    budget: {season_sens: 0.30, promo_sens: 0.20, planning_noise_sd: 0.15, chase: 1.0}
+
+  search:
+    exposure: clicks               # INCREMENTAL clicks (thousands) = spend / CPC drive sales
+    mean_spend: 25.0
+    price: {kind: cpc, base: 1.00, q4_amp: 0.10, ar_rho: 0.4, log_sd: 0.08}
+    adstock: {type: geometric, decay: 0.20, peak_lag: 0}
+    saturation: {k: 30.0, shape: 1.0}
+    beta: 150.0
+    budget: {season_sens: 0.35, promo_sens: 0.30, planning_noise_sd: 0.10, chase: 3.0,
+             latent_tracking: 2.0}   # Search spend also tracks the hidden demand shock
+
+# ---- Step 3e: Search demand mechanism (scenario v1) ---------------------------------
+# Observed search_clicks = incremental clicks + demand-driven clicks.
+# Sales respond to INCREMENTAL clicks only. Demand-driven clicks come from people
+# who would have bought anyway, so they have zero causal effect on sales.
+# organic_search_volume (observed) = noisy proxy of baseline demand (no media lift in v1).
+search_demand:
+  channel: search
+  query_volume_at_start: 300.0     # thousand queries per week at baseline index 1.0
+  proxy_noise_sd: 0.10             # log-normal multiplicative noise; Phase 2 sweeps 0 to 0.40
+  demand_click_share: 0.05         # share of true query volume that shows up as ad clicks
